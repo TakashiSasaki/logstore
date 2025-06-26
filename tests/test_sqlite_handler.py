@@ -17,6 +17,12 @@ def test_logging_inserts_records():
 
     logger.info('hello world')
 
-    cursor = conn.execute('SELECT level, message FROM logs')
-    rows = cursor.fetchall()
-    assert rows == [('INFO', 'hello world')]
+    cursor = conn.execute('SELECT name, levelno, level, message FROM logs')
+    row = cursor.fetchone()
+
+    assert row == (
+        'testlogger',
+        logging.INFO,
+        'INFO',
+        'hello world',
+    )
