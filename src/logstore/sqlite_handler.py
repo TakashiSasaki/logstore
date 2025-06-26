@@ -42,20 +42,49 @@ class SQLiteHandler(logging.Handler):
         self._ensure_table()
 
     def _ensure_table(self) -> None:
+        """Create the log table if it does not already exist."""
+
         self.conn.execute(
-            f"CREATE TABLE IF NOT EXISTS {self.table} (\n"
-            "  created REAL,\n"
-            "  level TEXT,\n"
-            "  message TEXT\n"
-            ")"
+            f"""CREATE TABLE IF NOT EXISTS {self.table} (
+                created REAL,
+                name TEXT,
+                levelno INTEGER,
+                level TEXT,
+                message TEXT,
+                pathname TEXT,
+                filename TEXT,
+                module TEXT,
+                lineno INTEGER,
+                funcName TEXT,
+                process INTEGER,
+                processName TEXT,
+                thread INTEGER,
+                threadName TEXT
+            )"""
         )
         self.conn.commit()
 
     def emit(self, record: logging.LogRecord) -> None:
         msg = self.format(record)
         self.conn.execute(
-            f"INSERT INTO {self.table} (created, level, message) VALUES (?, ?, ?)",
-            (record.created, record.levelname, msg),
+            f"INSERT INTO {self.table} (created, name, levelno, level, message, pathname, filename, module, lineno, funcName, process, processName, thread, threadName) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                record.created,
+                record.name,
+                record.levelno,
+                record.levelname,
+                msg,
+                getattr(record, "pathname", None),
+                getattr(record, "filename", None),
+                getattr(record, "module", None),
+                getattr(record, "lineno", None),
+                getattr(record, "funcName", None),
+                getattr(record, "process", None),
+                getattr(record, "processName", None),
+                getattr(record, "thread", None),
+                getattr(record, "threadName", None),
+            ),
         )
         self.conn.commit()
 
