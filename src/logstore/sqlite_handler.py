@@ -12,9 +12,10 @@ Example
     logger.addHandler(handler)
     logger.warning('hi')
 """
+import json
 import logging
 import sqlite3
-from typing import Optional
+from typing import Any, Dict, Optional
 
 class SQLiteHandler(logging.Handler):
     """Logging handler that writes records to a SQLite database.
@@ -46,44 +47,52 @@ class SQLiteHandler(logging.Handler):
 
         self.conn.execute(
             f"""CREATE TABLE IF NOT EXISTS {self.table} (
-                created REAL,
-                name TEXT,
-                levelno INTEGER,
-                level TEXT,
-                message TEXT,
-                pathname TEXT,
-                filename TEXT,
-                module TEXT,
-                lineno INTEGER,
-                funcName TEXT,
-                process INTEGER,
-                processName TEXT,
-                thread INTEGER,
-                threadName TEXT
+                timestamp REAL NOT NULL,
+                severity INTEGER NOT NULL,
+                message TEXT NOT NULL,
+                source TEXT NOT NULL,
+                process_id INTEGER NOT NULL,
+                details_json TEXT
             )"""
         )
         self.conn.commit()
 
+    def _extract_details(self, record: logging.LogRecord) -> Dict[str, Any]:
+        """Return a dictionary of LogRecord attributes not stored in core columns."""
+
+        excluded = {
+            "created",
+            "levelno",
+            "msg",
+            "args",
+            "name",
+            "process",
+            "message",
+        }
+        details = {}
+        for key, value in record.__dict__.items():
+            if key in excluded:
+                continue
+            try:
+                json.dumps(value)
+                details[key] = value
+            except TypeError:
+                details[key] = str(value)
+        return details
+
     def emit(self, record: logging.LogRecord) -> None:
         msg = self.format(record)
+        details = self._extract_details(record)
         self.conn.execute(
-            f"INSERT INTO {self.table} (created, name, levelno, level, message, pathname, filename, module, lineno, funcName, process, processName, thread, threadName) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            f"INSERT INTO {self.table} (timestamp, severity, message, source, process_id, details_json) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (
                 record.created,
-                record.name,
                 record.levelno,
-                record.levelname,
                 msg,
-                getattr(record, "pathname", None),
-                getattr(record, "filename", None),
-                getattr(record, "module", None),
-                getattr(record, "lineno", None),
-                getattr(record, "funcName", None),
+                record.name,
                 getattr(record, "process", None),
-                getattr(record, "processName", None),
-                getattr(record, "thread", None),
-                getattr(record, "threadName", None),
+                json.dumps(details),
             ),
         )
         self.conn.commit()

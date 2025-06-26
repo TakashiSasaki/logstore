@@ -1,3 +1,4 @@
+import json
 import logging
 import sqlite3
 import os
@@ -17,12 +18,14 @@ def test_logging_inserts_records():
 
     logger.info('hello world')
 
-    cursor = conn.execute('SELECT name, levelno, level, message FROM logs')
+    cursor = conn.execute(
+        'SELECT source, severity, message, process_id, details_json FROM logs'
+    )
     row = cursor.fetchone()
 
-    assert row == (
-        'testlogger',
-        logging.INFO,
-        'INFO',
-        'hello world',
-    )
+    assert row[0] == 'testlogger'
+    assert row[1] == logging.INFO
+    assert row[2] == 'hello world'
+    assert row[3] == os.getpid()
+    details = json.loads(row[4])
+    assert 'pathname' in details
