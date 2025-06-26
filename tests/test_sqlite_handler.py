@@ -8,15 +8,29 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 from logstore.sqlite_handler import SQLiteHandler
 
 
-def test_logging_inserts_records():
+def test_logging_inserts_records(monkeypatch):
     conn = sqlite3.connect(':memory:')
     handler = SQLiteHandler(conn)
     logger = logging.getLogger('testlogger')
     logger.setLevel(logging.INFO)
     logger.addHandler(handler)
 
-    logger.info('hello world')
+    fixed_time = 1700000000.0
+    monkeypatch.setattr(logging.time, "time", lambda: fixed_time)
 
-    cursor = conn.execute('SELECT level, message FROM logs')
-    rows = cursor.fetchall()
-    assert rows == [('INFO', 'hello world')]
+    logger.info("hello world")
+
+    cursor = conn.execute(
+        "SELECT created, name, levelno, level, message FROM logs"
+    )
+    row = cursor.fetchone()
+
+    expected_filetime = int((fixed_time + 11644473600) * 10_000_000)
+
+    assert row == (
+        expected_filetime,
+        "testlogger",
+        logging.INFO,
+        "INFO",
+        "hello world",
+    )
